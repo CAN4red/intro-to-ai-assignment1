@@ -1,2 +1,2 @@
-# intro-to-ai-assignment1
+# Introduction to AI | Assignment 1
 A* and backtracking algorithms implementation
