@@ -111,7 +111,7 @@ class AStar:
         self.available_cells: Dict[Tuple[int, int], Cell] = dict()
         self.to_goals = _init_to_goals(keymaker_position)
 
-    def is_valid(self, coords: Tuple[int, int]) -> bool:
+    def _is_valid(self, coords: Tuple[int, int]) -> bool:
         """
         Checks if the given coordinates are valid for a move.
 
@@ -125,7 +125,7 @@ class AStar:
         is_unvisited = coords not in self.visited.keys()
         return x_valid and y_valid and is_safe and is_unvisited
 
-    def update_visited(self, cell: Cell) -> None:
+    def _update_visited(self, cell: Cell) -> None:
         """
         Updates the visited cells with the current cell.
 
@@ -133,7 +133,7 @@ class AStar:
         """
         self.visited[cell.coords] = cell
 
-    def get_available_coords(self, coord: Tuple[int, int]) -> Set[Tuple[int, int]]:
+    def _get_available_coords(self, coord: Tuple[int, int]) -> Set[Tuple[int, int]]:
         """
         Gets the available coordinates (open positions)
         that can be moved to from the current position.
@@ -145,17 +145,17 @@ class AStar:
         x, y = coord
         for dx, dy in POSSIBLE_MOVES:
             new_coord = (x + dx, y + dy)
-            if self.is_valid(new_coord):
+            if self._is_valid(new_coord):
                 available.add(new_coord)
         return available
 
-    def update_available(self, coord: Tuple[int, int]) -> None:
+    def _update_available(self, coord: Tuple[int, int]) -> None:
         """
         Updates the available (open) cells based on the current coordinate.
 
         :param coord: The current coordinate to update from.
         """
-        for new_coord in self.get_available_coords(coord):
+        for new_coord in self._get_available_coords(coord):
             new_from_init = self.visited[coord].from_init + 1
             to_goal = self.to_goals[new_coord]
 
@@ -176,16 +176,16 @@ class AStar:
                     self.visited[coord].path_from_init + [new_coord]
                 )
 
-    def update_all_available(self) -> None:
+    def _update_all_available(self) -> None:
         """
         Updates all available cells by clearing the current
         available cells and recalculating them.
         """
         self.available_cells.clear()
         for coord in self.visited.keys():
-            self.update_available(coord)
+            self._update_available(coord)
 
-    def get_best_cell(self) -> Cell | None:
+    def _get_best_cell(self) -> Cell | None:
         """
         Gets the best cell to move to based on the total path cost.
 
@@ -206,7 +206,7 @@ class AStar:
                 best_available_cell = cell
         return best_available_cell
 
-    def update_dangers(self, items: Dict[Tuple[int, int], str]) -> None:
+    def _update_dangers(self, items: Dict[Tuple[int, int], str]) -> None:
         """
         Updates the set of dangerous items by adding new dangers.
 
@@ -216,7 +216,7 @@ class AStar:
             if items[coord] in DANGER_ITEMS:
                 self.dangers.add(coord)
 
-    def zeroth_move(self) -> Cell:
+    def _zeroth_move(self) -> Cell:
         """
         Performs the initial move from the starting position and updates the state.
 
@@ -226,19 +226,19 @@ class AStar:
         zeroth_move = Cell(zero_coord, 0, self.to_goals[zero_coord], [(0, 0)])
         print("m 0 0")
         items_around = read_response()
-        self.update_dangers(items_around)
-        self.update_visited(zeroth_move)
-        self.update_all_available()
+        self._update_dangers(items_around)
+        self._update_visited(zeroth_move)
+        self._update_all_available()
         return zeroth_move
 
     def find_path(self):
         """
         Executes the A* algorithm to find the path to the keymaker.
         """
-        best_move = self.zeroth_move()
+        best_move = self._zeroth_move()
         while True:
             current_move = best_move
-            best_move = self.get_best_cell()
+            best_move = self._get_best_cell()
 
             if best_move is None:
                 print("e -1")
@@ -254,9 +254,9 @@ class AStar:
             print("m", *best_move.coords)
 
             items_around = read_response()
-            self.update_dangers(items_around)
-            self.update_visited(best_move)
-            self.update_all_available()
+            self._update_dangers(items_around)
+            self._update_visited(best_move)
+            self._update_all_available()
 
 
 def read_initial_input() -> Tuple[int, int]:
