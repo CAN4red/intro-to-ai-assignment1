@@ -55,7 +55,7 @@ def read_response() -> Dict[Tuple[int, int], str]:
         x, y, item_type = input().split()
         x = int(x)
         y = int(y)
-        if item_type in DANGER_ITEMS or item_type == 'K':
+        if item_type in DANGER_ITEMS:
             dangers[(x, y)] = item_type
 
     return dangers
@@ -63,7 +63,7 @@ def read_response() -> Dict[Tuple[int, int], str]:
 
 class GameMap:
     def __init__(self):
-        self.game_map: List[List[str | None]] = [[None for _ in range(9)] for _ in range(9)]
+        self.game_map: List[List[int]] = [[INT_INFINITY for _ in range(9)] for _ in range(9)]
         self.visited_path: Deque[Tuple[int, int]] = deque()
         self.is_first_backtrack: bool = True
 
@@ -77,7 +77,7 @@ class GameMap:
         available_neighbors = []
 
         for neighbor_pos in get_neighbors(pos):
-            if self.get_info(neighbor_pos) is None:
+            if self._get_path_len(neighbor_pos) > self._get_path_len(pos) + 1:
                 available_neighbors.append(neighbor_pos)
 
         return available_neighbors
@@ -101,9 +101,9 @@ class GameMap:
         neighbors = self._get_available_neighbours(pos)
         return len(neighbors) != 0
 
-    def get_info(self, pos: Tuple[int, int]) -> str | None:
+    def _get_path_len(self, pos: Tuple[int, int]) -> int:
         """
-        Gets the information stored at the given position on the game map.
+        Gets the path length to the given position on the game map.
 
         :param pos: The position to retrieve information from.
         :return: The information at the position or None if unvisited.
@@ -111,36 +111,26 @@ class GameMap:
         x, y = pos
         return self.game_map[x][y]
 
-    def _change_info(self, pos: Tuple[int, int], info: str) -> None:
+    def _change_path_len(self, pos: Tuple[int, int], new_path_len: int) -> None:
         """
-        Changes the information stored at the given position on the game map.
+        Changes the path length for a given position on the game map.
 
         :param pos: The position to change information for.
-        :param info: The new information to store.
+        :param new_path_len: The new information to store.
         """
         x, y = pos
-        self.game_map[x][y] = info
+        self.game_map[x][y] = new_path_len
 
-    def _add_items(self, items: Dict[Tuple[int, int], str]) -> None:
+    def _add_dangers(self, dangers: Dict[Tuple[int, int], str]) -> None:
         """
-        Adds items to the game map.
+        Adds dangers to the game map as negative infinity.
 
-        :param items: A dictionary of items and their positions.
+        :param dangers: A dictionary of items and their positions.
         """
-        for pos in items.keys():
-            self._change_info(pos, items[pos])
+        for pos in dangers.keys():
+            self._change_path_len(pos, -INT_INFINITY)
 
-    def _add_visited(self, pos: Tuple[int, int]) -> None:
-        """
-        Marks the given position as visited on the game map.
-
-        :param pos: The position to mark as visited.
-        """
-        x, y = pos
-        if self.game_map[x][y] is None:
-            self.game_map[x][y] = '.'
-
-    def _move_to(self, pos: Tuple[int, int]) -> None:
+    def _move_to(self, pos: Tuple[int, int], path: int) -> None:
         """
         Moves to the position, updates the game map, and reads the response.
 
@@ -149,8 +139,8 @@ class GameMap:
         print('m', *pos)
         dangers = read_response()
 
-        self._add_items(dangers)
-        self._add_visited(pos)
+        self._add_dangers(dangers)
+        self._change_path_len(pos, path)
         self.visited_path.append(pos)
 
     def _get_current_pos(self) -> Tuple[int, int]:
@@ -171,12 +161,13 @@ class GameMap:
         """
         return self.visited_path.pop()
 
-    def fill_map(self) -> None:
+    def _fill_map(self) -> None:
         """
-        Fills the game map by moving through available positions
+        Fills all the shortest paths on the game map
+        by moving through available positions
         until no more moves can be made.
         """
-        self._move_to(INITIAL_POS)
+        self._move_to(INITIAL_POS, 0)
         while True:
             current_pos = self._get_current_pos()
 
@@ -190,115 +181,26 @@ class GameMap:
                     self.is_first_backtrack = True
 
                 neighbour_pos = self._get_neighbour(current_pos)
-                self._move_to(neighbour_pos)
+                self._move_to(neighbour_pos, self._get_path_len(current_pos) + 1)
             else:
-                if self.is_first_backtrack:
-                    self._backtrack()
-                    self.is_first_backtrack = False
                 prev_pos = self._backtrack()
+                if self.is_first_backtrack:
+                    self.is_first_backtrack = False
+                    continue
                 print('m', *prev_pos)
                 read_response()
 
-
-class PathFinder:
-    def __init__(self, keymaker_position):
+    def find_path(self, keymaker_position: Tuple[int, int]) -> None:
         """
-        :param keymaker_position: The coordinates of the keymaker.
+        Prints the shortest path to the keymaker
+
+        :param keymaker_position: position of the keymaker
         """
-        self.game_map: GameMap = GameMap()
-        self.keymaker_position = keymaker_position
-        self.distances: List[List[int]] = [[INT_INFINITY for _ in range(9)] for _ in range(9)]
-        self.cells_queue: Deque[Tuple[int, int]] = deque()
-
-    def _get_available_neighbours(self, pos: Tuple[int, int]) -> List[Tuple[int, int]]:
-        """
-        Gets the available neighbours (open moves) that can be moved to.
-
-        :param pos: The current position.
-        :return: A list of available neighbours.
-        """
-        available_neighbors = []
-
-        for neighbor_pos in get_neighbors(pos):
-            if (self._get_distance(neighbor_pos) >= INT_INFINITY and
-                    self.game_map.get_info(neighbor_pos) not in DANGER_ITEMS):
-                available_neighbors.append(neighbor_pos)
-
-        return available_neighbors
-
-    def _update_queue(self, pos: Tuple[int, int]) -> None:
-        """
-        Updates the queue of cells to explore based on the current position.
-
-        :param pos: The current position to update from.
-        """
-        available_cells = self._get_available_neighbours(pos)
-        for cell in available_cells:
-            self.cells_queue.append(cell)
-
-    def _get_current_cell(self) -> Tuple[int, int]:
-        """
-        Gets the current cell from the queue.
-
-        :return: The coordinates of the current cell.
-        """
-        return self.cells_queue.popleft()
-
-    def _get_distance(self, pos: Tuple[int, int]) -> int:
-        """
-        Gets the distance value for the given position.
-
-        :param pos: The position to get the distance for.
-        :return: The distance value at the position.
-        """
-        x, y = pos
-        return self.distances[x][y]
-
-    def _set_distance(self, pos: Tuple[int, int], distance: int) -> None:
-        """
-        Sets the distance value for the given position.
-
-        :param pos: The position to set the distance for.
-        :param distance: The distance value to set.
-        """
-        x, y = pos
-        self.distances[x][y] = distance
-
-    def _set_min_distance_to(self, pos: Tuple[int, int]) -> None:
-        """
-        Sets the minimum distance to the given position based on its neighbours.
-
-        :param pos: The position to set the minimum distance for.
-        """
-        neighbours = get_neighbors(pos)
-        neighbour_distances = [self._get_distance(pos) for pos in neighbours]
-        min_distance = min(neighbour_distances) + 1
-        self._set_distance(pos, min_distance)
-
-    def find_path(self) -> None:
-        """
-        Executes the pathfinding algorithm to the keymaker's position.
-
-        This method fills the game map, initializes distances, and processes the cells queue
-        until the keymaker is found or no more cells are available.
-        """
-        self.game_map.fill_map()
-
-        self._set_distance(INITIAL_POS, 0)
-        self._update_queue(INITIAL_POS)
-
-        while True:
-            if len(self.cells_queue) == 0:
-                print('e -1')
-                return
-
-            current_pos = self._get_current_cell()
-            self._set_min_distance_to(current_pos)
-            self._update_queue(current_pos)
-
-            if self.game_map.get_info(current_pos) == 'K':
-                print('e', self._get_distance(current_pos))
-                return
+        self._fill_map()
+        if self._get_path_len(keymaker_position) == INT_INFINITY:
+            print("e -1")
+        else:
+            print('e', self._get_path_len(keymaker_position))
 
 
 def read_initial_input():
@@ -316,8 +218,8 @@ def read_initial_input():
 
 def main():
     keymaker_position = read_initial_input()
-    path_finder = PathFinder(keymaker_position)
-    path_finder.find_path()
+    game_map = GameMap()
+    game_map.find_path(keymaker_position)
 
 
 if __name__ == '__main__':
